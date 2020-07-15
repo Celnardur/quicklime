@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "quick_bison",
+    "quicklime",
+]
