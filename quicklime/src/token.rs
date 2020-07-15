@@ -8,7 +8,10 @@ pub struct Pos {
 
 impl Pos {
     pub fn add(&self, right: &Pos) -> Pos {
-        Pos { line: self.line + right.line, col: self.col + right.col }
+        Pos {
+            line: self.line + right.line,
+            col: self.col + right.col,
+        }
     }
 }
 
