@@ -22,6 +22,8 @@ pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
     Ok(tokens)
 }
 
+
+
 pub fn parse_token(code: &Vec<char>, start_index: usize)
     -> Result<Option<(TokenType, Pos, usize)>, Box<dyn error::Error>> {
     if start_index >= code.len() {
@@ -32,13 +34,13 @@ pub fn parse_token(code: &Vec<char>, start_index: usize)
     // Identifiers and keywords
     if code[0].is_alphabetic() {
         let mut length = 1;
-        while length < code.len() && code[length].is_alphanumeric(){
+        while length < code.len() && (code[length].is_alphanumeric() || code[length] == '_') {
             length += 1;
         }
 
         let pos = Pos {line: 0, col: length};
-        let id = code[..length].iter().collect::<String>();
-        let id = id.as_str();
+        let id_owned = code[..length].iter().collect::<String>();
+        let id = id_owned.as_str();
         // a keyword is just a special identifier
         let token = match id {
             "i64" => I64,
@@ -59,8 +61,11 @@ pub fn parse_token(code: &Vec<char>, start_index: usize)
             "if" => If,
             "else" => Else,
             "match" => Match,
-            _ => return Ok(Some((Identifier(id.to_owned()), pos, length))),
+            _ => Identifier(id_owned),
         };
+
+
+
         return Ok(Some((token, pos, length)));
     }
 
@@ -107,7 +112,7 @@ pub fn parse_token(code: &Vec<char>, start_index: usize)
         '/' => match code.get(1) {
             Some('/') => {
                 let mut length = 2;
-                while code.get(length) != '\n' {
+                while code.get(length) != Some(&'\n') {
                     length += 1;
                 }
                 Ok(Some((
@@ -121,7 +126,7 @@ pub fn parse_token(code: &Vec<char>, start_index: usize)
                 let mut col = 2;
                 let mut line = 0;
                 while code.get(length) != None &&
-                    !(code.get(length) == Some('*') && code.get(length + 1) == Some('/')) {
+                    !(code.get(length) == Some(&'*') && code.get(length + 1) == Some(&'/')) {
                     if code[length] == '\n' {
                         line += 1;
                         col = 0;
