@@ -23,6 +23,24 @@ pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
     Ok(tokens)
 }
 
+macro_rules! olt {
+    ( $token:expr, $length:expr ) => {
+        Ok(Some(($token, Pos { line: 0, col: $length }, $length)))
+    }
+}
+
+macro_rules! oct {
+    ( $token:expr ) => {
+        Ok(Some(($token, Pos { line: 0, col: 1 }, 1)))
+    }
+}
+
+macro_rules! tct {
+    ( $token:expr, $length:expr ) => {
+        Ok(Some(($token, Pos { line: 0, col: 2 }, 2)))
+    }
+}
+
 pub fn parse_token(
     code: &Vec<char>,
     start_index: usize,
@@ -39,10 +57,6 @@ pub fn parse_token(
             length += 1;
         }
 
-        let pos = Pos {
-            line: 0,
-            col: length,
-        };
         let id_owned = code[..length].iter().collect::<String>();
         let id = id_owned.as_str();
         // a keyword is just a special identifier
@@ -68,7 +82,7 @@ pub fn parse_token(
             _ => Identifier(id_owned),
         };
 
-        return Ok(Some((token, pos, length)));
+        return olt!(token, length);
     }
 
     // check for whitespace
@@ -105,26 +119,19 @@ pub fn parse_token(
             Integer(code[..length].iter().collect::<String>().parse()?)
         };
 
-        return Ok(Some((
-            token,
-            Pos {
-                col: length,
-                line: 0,
-            },
-            length,
-        )));
+        return olt!(token, length);
     }
 
     match code[0] {
-        '(' => Ok(Some((LParen, Pos { line: 0, col: 1 }, 1))),
-        ')' => Ok(Some((RParen, Pos { line: 0, col: 1 }, 1))),
-        '[' => Ok(Some((LSquare, Pos { line: 0, col: 1 }, 1))),
-        ']' => Ok(Some((RSquare, Pos { line: 0, col: 1 }, 1))),
-        '{' => Ok(Some((LCurly, Pos { line: 0, col: 1 }, 1))),
-        '}' => Ok(Some((RCurly, Pos { line: 0, col: 1 }, 1))),
-        '+' => Ok(Some((Plus, Pos { line: 0, col: 1 }, 1))),
-        '-' => Ok(Some((Minus, Pos { line: 0, col: 1 }, 1))),
-        '*' => Ok(Some((Multiply, Pos { line: 0, col: 1 }, 1))),
+        '(' => oct!(LParen),
+        ')' => oct!(RParen),
+        '[' => oct!(LSquare),
+        ']' => oct!(RSquare),
+        '{' => oct!(LCurly),
+        '}' => oct!(RCurly),
+        '+' => oct!(Plus),
+        '-' => oct!(Minus),
+        '*' => oct!(Multiply),
         '/' => match code.get(1) {
             Some('/') => {
                 let mut length = 2;
@@ -161,26 +168,26 @@ pub fn parse_token(
                     length + 2,
                 )))
             }
-            _ => Ok(Some((Divide, Pos { line: 0, col: 1 }, 1))),
+            _ => oct!(Divide)
         },
-        '%' => Ok(Some((Modulus, Pos { line: 0, col: 1 }, 1))),
+        '%' => oct!(Modulus),
         '<' => match code.get(1) {
-            Some('=') => Ok(Some((LE, Pos { line: 0, col: 2 }, 2))),
-            Some('<') => Ok(Some((LeftShift, Pos { line: 0, col: 2 }, 2))),
-            _ => Ok(Some((LT, Pos { line: 0, col: 1 }, 1))),
+            Some('=') => tct!(LE),
+            Some('<') => tct!(LeftShift),
+            _ => oct!(LT),
         },
         '>' => match code.get(1) {
-            Some('=') => Ok(Some((GE, Pos { line: 0, col: 2 }, 2))),
-            Some('>') => Ok(Some((RightShift, Pos { line: 0, col: 2 }, 2))),
-            _ => Ok(Some((GT, Pos { line: 0, col: 1 }, 1))),
+            Some('=') => tct!(GE),
+            Some('>') => tct!(RightShift),
+            _ => oct!(GT),
         },
         '&' => match code.get(1) {
-            Some('&') => Ok(Some((And, Pos { line: 0, col: 2 }, 2))),
-            _ => Ok(Some((BitwiseAnd, Pos { line: 0, col: 1 }, 1))),
+            Some('&') => tct!(And),
+            _ => oct!(BitwiseAnd),
         },
         '|' => match code.get(1) {
-            Some('|') => Ok(Some((Or, Pos { line: 0, col: 2 }, 2))),
-            _ => Ok(Some((BitwiseOr, Pos { line: 0, col: 1 }, 1))),
+            Some('|') => tct!(Or),
+            _ => oct!(BitwiseOr),
         },
         _ => Ok(None),
     }
