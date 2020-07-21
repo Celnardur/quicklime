@@ -10,7 +10,11 @@ impl Pos {
     pub fn add(&self, right: &Pos) -> Pos {
         Pos {
             line: self.line + right.line,
-            col: self.col + right.col,
+            col: if right.line == 0 {
+                self.col + right.col
+            } else {
+                right.col
+            },
         }
     }
 }

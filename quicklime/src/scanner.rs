@@ -25,20 +25,27 @@ pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
 
 macro_rules! olt {
     ( $token:expr, $length:expr ) => {
-        Ok(Some(($token, Pos { line: 0, col: $length }, $length)))
-    }
+        Ok(Some((
+            $token,
+            Pos {
+                line: 0,
+                col: $length,
+            },
+            $length,
+        )))
+    };
 }
 
 macro_rules! oct {
     ( $token:expr ) => {
         Ok(Some(($token, Pos { line: 0, col: 1 }, 1)))
-    }
+    };
 }
 
 macro_rules! tct {
-    ( $token:expr, $length:expr ) => {
+    ( $token:expr ) => {
         Ok(Some(($token, Pos { line: 0, col: 2 }, 2)))
-    }
+    };
 }
 
 pub fn parse_token(
@@ -87,18 +94,19 @@ pub fn parse_token(
 
     // check for whitespace
     if code[0].is_whitespace() {
-        let mut length = 1;
+        let mut length = 0;
+        let mut pos = Pos { line: 0, col: 0 };
         while length < code.len() && code[length].is_whitespace() {
+            // TODO: Add check for all unicode line endings
+            if code[length] == '\n' {
+                pos.line += 1;
+                pos.col = 0;
+            } else {
+                pos.col += 1;
+            }
             length += 1;
         }
-        return Ok(Some((
-            Whitespace,
-            Pos {
-                col: length,
-                line: 0,
-            },
-            length,
-        )));
+        return Ok(Some((Whitespace, pos, length)));
     }
 
     // check for number literals
@@ -154,6 +162,7 @@ pub fn parse_token(
                 while code.get(length) != None
                     && !(code.get(length) == Some(&'*') && code.get(length + 1) == Some(&'/'))
                 {
+                    // TODO: Add check for all unicode line endings
                     if code[length] == '\n' {
                         line += 1;
                         col = 0;
@@ -168,7 +177,7 @@ pub fn parse_token(
                     length + 2,
                 )))
             }
-            _ => oct!(Divide)
+            _ => oct!(Divide),
         },
         '%' => oct!(Modulus),
         '<' => match code.get(1) {
@@ -273,6 +282,36 @@ mod test {
                     start: Pos { line: 0, col: 5 },
                     end: Pos { line: 0, col: 9 },
                     kind: Double(3.14),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn whitespace() {
+        let code = "for\n\nwhile   \t \n for \t for".chars().collect();
+        assert_eq!(
+            scan(code).unwrap(),
+            [
+                Token {
+                    start: Pos { line: 0, col: 0 },
+                    end: Pos { line: 0, col: 3 },
+                    kind: For,
+                },
+                Token {
+                    start: Pos { line: 2, col: 0 },
+                    end: Pos { line: 2, col: 5 },
+                    kind: While,
+                },
+                Token {
+                    start: Pos { line: 3, col: 1 },
+                    end: Pos { line: 3, col: 4 },
+                    kind: For,
+                },
+                Token {
+                    start: Pos { line: 3, col: 7 },
+                    end: Pos { line: 3, col: 10 },
+                    kind: For,
                 },
             ]
         );
