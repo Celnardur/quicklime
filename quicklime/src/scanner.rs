@@ -11,6 +11,8 @@ pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
     while let Some((token, pos, length)) = parse_token(&code, index)? {
         match token {
             Whitespace => (),
+            LineComment(_) => (),
+            MultiLineComment(_) => (),
             _ => tokens.push(Token {
                 start: on.clone(),
                 end: on.add(&pos),
@@ -171,11 +173,20 @@ pub fn parse_token(
                     }
                     length += 1;
                 }
-                Ok(Some((
-                    MultiLineComment(code[2..length].iter().cloned().collect()),
-                    Pos { line, col: col + 2 },
-                    length + 2,
-                )))
+                if code.get(length) == None {
+                    Ok(Some((
+                        MultiLineComment(code[2..].iter().cloned().collect()),
+                        Pos { line, col },
+                        length
+                    )))
+
+                } else {
+                    Ok(Some((
+                        MultiLineComment(code[2..length].iter().cloned().collect()),
+                        Pos { line, col: col + 2 },
+                        length + 2,
+                    )))
+                }
             }
             _ => oct!(Divide),
         },
@@ -312,6 +323,31 @@ mod test {
                     start: Pos { line: 3, col: 7 },
                     end: Pos { line: 3, col: 10 },
                     kind: For,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn comments() {
+        let code = "for // line comment\nwhile /* multiline \n comment */\n let /* the end".chars().collect();
+        assert_eq!(
+            scan(code).unwrap(),
+            [
+                Token {
+                    start: Pos { line: 0, col: 0 },
+                    end: Pos { line: 0, col: 3 },
+                    kind: For,
+                },
+                Token {
+                    start: Pos { line: 1, col: 0 },
+                    end: Pos { line: 1, col: 5 },
+                    kind: While,
+                },
+                Token {
+                    start: Pos { line: 3, col: 1 },
+                    end: Pos { line: 3, col: 4 },
+                    kind: Let,
                 },
             ]
         );

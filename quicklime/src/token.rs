@@ -92,8 +92,8 @@ pub enum TokenType {
     // Identifier
     Identifier(String),
     // comments
-    LeftBlockComment,
-    RightBlockComment,
+    LeftBlockComment, // /{
+    RightBlockComment, // }/
     MultiLineComment(String),
     LineComment(String),
     Whitespace,
