@@ -4,58 +4,46 @@ use std::vec::Vec;
 use TokenType::*;
 
 pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
-    let mut on = Pos { line: 0, col: 0 };
     let mut index = 0;
     let mut tokens: Vec<Token> = Vec::new();
 
-    while let Some((token, pos, length)) = parse_token(&code, index)? {
+    while let Some(res) = parse_token(&code, index) {
+        // TODO: Handle this
+        let (token, length) = res.unwrap();
         match token {
             Whitespace => (),
             LineComment(_) => (),
             MultiLineComment(_) => (),
             _ => tokens.push(Token {
-                start: on.clone(),
-                end: on.add(&pos),
+                start: index,
+                length,
                 kind: token,
             }),
         }
-        on = on.add(&pos);
         index += length;
     }
     Ok(tokens)
 }
 
-macro_rules! olt {
-    ( $token:expr, $length:expr ) => {
-        Ok(Some((
-            $token,
-            Pos {
-                line: 0,
-                col: $length,
-            },
-            $length,
-        )))
-    };
-}
-
 macro_rules! oct {
     ( $token:expr ) => {
-        Ok(Some(($token, Pos { line: 0, col: 1 }, 1)))
+        Ok(($token, 1))
     };
 }
 
 macro_rules! tct {
     ( $token:expr ) => {
-        Ok(Some(($token, Pos { line: 0, col: 2 }, 2)))
+        Ok(($token, 2))
     };
 }
 
+// None indicates end of file
 pub fn parse_token(
     code: &Vec<char>,
     start_index: usize,
-) -> Result<Option<(TokenType, Pos, usize)>, Box<dyn error::Error>> {
+) -> Option<Result<(TokenType, usize), Box<dyn error::Error>>> {
     if start_index >= code.len() {
-        return Ok(None);
+        return None;
     }
     let code = &code[start_index..];
 
@@ -69,7 +57,7 @@ pub fn parse_token(
         let id_owned = code[..length].iter().collect::<String>();
         let id = id_owned.as_str();
         // a keyword is just a special identifier
-        let token = match id {
+        return Some(Ok((match id {
             "i64" => I64,
             "u64" => U64,
             "u8" => U8,
@@ -89,26 +77,16 @@ pub fn parse_token(
             "else" => Else,
             "match" => Match,
             _ => Identifier(id_owned),
-        };
-
-        return olt!(token, length);
+        }, length)));
     }
 
     // check for whitespace
     if code[0].is_whitespace() {
-        let mut length = 0;
-        let mut pos = Pos { line: 0, col: 0 };
-        while length < code.len() && code[length].is_whitespace() {
-            // TODO: Add check for all unicode line endings
-            if code[length] == '\n' {
-                pos.line += 1;
-                pos.col = 0;
-            } else {
-                pos.col += 1;
-            }
+        let mut length = 1;
+        while code.get(length).is_some() && code[length].is_whitespace() {
             length += 1;
         }
-        return Ok(Some((Whitespace, pos, length)));
+        return Some(Ok((Whitespace, length)));
     }
 
     // check for number literals
@@ -124,15 +102,15 @@ pub fn parse_token(
                 length += 1;
             }
             // TODO: handle bad parses
-            Double(code[..length].iter().collect::<String>().parse()?)
+            Double(code[..length].iter().collect::<String>().parse().unwrap())
         } else {
-            Integer(code[..length].iter().collect::<String>().parse()?)
+            Integer(code[..length].iter().collect::<String>().parse().unwrap())
         };
 
-        return olt!(token, length);
+        return Some(Ok((token, length)));
     }
 
-    match code[0] {
+    Some(match code[0] {
         '(' => oct!(LParen),
         ')' => oct!(RParen),
         '[' => oct!(LSquare),
@@ -148,14 +126,10 @@ pub fn parse_token(
                 while code.get(length) != Some(&'\n') {
                     length += 1;
                 }
-                Ok(Some((
+                Ok((
                     LineComment(code[2..length].iter().clone().collect()),
-                    Pos {
-                        line: 0,
-                        col: length,
-                    },
                     length,
-                )))
+                ))
             }
             Some('*') => {
                 let mut length = 2;
@@ -164,28 +138,21 @@ pub fn parse_token(
                 while code.get(length) != None
                     && !(code.get(length) == Some(&'*') && code.get(length + 1) == Some(&'/'))
                 {
-                    // TODO: Add check for all unicode line endings
-                    if code[length] == '\n' {
-                        line += 1;
-                        col = 0;
-                    } else {
-                        col += 1;
-                    }
                     length += 1;
                 }
+
+                // reached end of file while reading line comment
                 if code.get(length) == None {
-                    Ok(Some((
+                    Ok((
                         MultiLineComment(code[2..].iter().cloned().collect()),
-                        Pos { line, col },
                         length
-                    )))
+                    ))
 
                 } else {
-                    Ok(Some((
+                    Ok((
                         MultiLineComment(code[2..length].iter().cloned().collect()),
-                        Pos { line, col: col + 2 },
                         length + 2,
-                    )))
+                    ))
                 }
             }
             _ => oct!(Divide),
@@ -209,8 +176,8 @@ pub fn parse_token(
             Some('|') => tct!(Or),
             _ => oct!(BitwiseOr),
         },
-        _ => Ok(None),
-    }
+        _ => Err(crate::Error::new_box("Reached end of file while scanning")),
+    })
 }
 
 #[cfg(test)]
@@ -221,12 +188,12 @@ mod test {
     fn parse_token_test() {
         assert_eq!(
             parse_token(&"42".chars().collect(), 0).unwrap().unwrap(),
-            (Integer(42), Pos { col: 2, line: 0 }, 2)
+            (Integer(42), 2)
         );
 
         assert_eq!(
             parse_token(&"asdf".chars().collect(), 0).unwrap().unwrap(),
-            (Identifier("asdf".to_string()), Pos { col: 4, line: 0 }, 4)
+            (Identifier("asdf".to_string()), 4)
         );
     }
 
@@ -237,18 +204,18 @@ mod test {
             scan(code).unwrap(),
             [
                 Token {
-                    start: Pos { line: 0, col: 0 },
-                    end: Pos { line: 0, col: 4 },
+                    start: 0,
+                    length: 4,
                     kind: Identifier("asdf".to_string()),
                 },
                 Token {
-                    start: Pos { line: 0, col: 5 },
-                    end: Pos { line: 0, col: 10 },
+                    start: 5,
+                    length: 5,
                     kind: Identifier("hello".to_string()),
                 },
                 Token {
-                    start: Pos { line: 0, col: 11 },
-                    end: Pos { line: 0, col: 16 },
+                    start: 11,
+                    length: 5,
                     kind: Identifier("world".to_string()),
                 },
             ]
@@ -285,13 +252,13 @@ mod test {
             scan(code).unwrap(),
             [
                 Token {
-                    start: Pos { line: 0, col: 0 },
-                    end: Pos { line: 0, col: 4 },
+                    start: 0,
+                    length: 4,
                     kind: Integer(1234),
                 },
                 Token {
-                    start: Pos { line: 0, col: 5 },
-                    end: Pos { line: 0, col: 9 },
+                    start: 5,
+                    length: 4,
                     kind: Double(3.14),
                 },
             ]
@@ -305,23 +272,23 @@ mod test {
             scan(code).unwrap(),
             [
                 Token {
-                    start: Pos { line: 0, col: 0 },
-                    end: Pos { line: 0, col: 3 },
+                    start: 0,
+                    length: 3,
                     kind: For,
                 },
                 Token {
-                    start: Pos { line: 2, col: 0 },
-                    end: Pos { line: 2, col: 5 },
+                    start: 5,
+                    length: 5,
                     kind: While,
                 },
                 Token {
-                    start: Pos { line: 3, col: 1 },
-                    end: Pos { line: 3, col: 4 },
+                    start: 17,
+                    length: 3,
                     kind: For,
                 },
                 Token {
-                    start: Pos { line: 3, col: 7 },
-                    end: Pos { line: 3, col: 10 },
+                    start: 23,
+                    length: 3,
                     kind: For,
                 },
             ]
@@ -335,18 +302,18 @@ mod test {
             scan(code).unwrap(),
             [
                 Token {
-                    start: Pos { line: 0, col: 0 },
-                    end: Pos { line: 0, col: 3 },
+                    start: 0,
+                    length: 3,
                     kind: For,
                 },
                 Token {
-                    start: Pos { line: 1, col: 0 },
-                    end: Pos { line: 1, col: 5 },
+                    start: 20,
+                    length: 5,
                     kind: While,
                 },
                 Token {
-                    start: Pos { line: 3, col: 1 },
-                    end: Pos { line: 3, col: 4 },
+                    start: 53,
+                    length: 3,
                     kind: Let,
                 },
             ]

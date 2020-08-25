@@ -1,28 +1,9 @@
 use std::string::String;
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub struct Pos {
-    pub line: usize,
-    pub col: usize,
-}
-
-impl Pos {
-    pub fn add(&self, right: &Pos) -> Pos {
-        Pos {
-            line: self.line + right.line,
-            col: if right.line == 0 {
-                self.col + right.col
-            } else {
-                right.col
-            },
-        }
-    }
-}
-
 #[derive(PartialEq, Clone, Debug)]
 pub struct Token {
-    pub start: Pos,
-    pub end: Pos,
+    pub start: usize,
+    pub length: usize,
     pub kind: TokenType,
 }
 
@@ -92,8 +73,8 @@ pub enum TokenType {
     // Identifier
     Identifier(String),
     // comments
-    LeftBlockComment, // /{
-    RightBlockComment, // }/
+    //LeftBlockComment, // /{
+    //RightBlockComment, // }/
     MultiLineComment(String),
     LineComment(String),
     Whitespace,
