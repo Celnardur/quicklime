@@ -1,21 +1,54 @@
 pub mod scanner;
 pub mod token;
 
+use std::string::String;
+
 #[derive(Debug, PartialEq)]
 pub struct Error {
     message: String,
+    id: usize,
+    kind: ErrorKind,
+    index: usize,
+    more_info: Option<String>,
+    markup: Vec<Markup>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ErrorKind {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Markup {
+    // region of code in question
+    index: usize,
+    length: usize,
+    message: String,
+    kind: MarkupKind,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum MarkupKind {
+    Error,
+    Warning,
+    Note,
 }
 
 impl Error {
-    pub fn new_box(message: &str) -> Box<Error> {
-        Box::new(Error {
-            message: String::from(message),
-        })
-    }
-
-    pub fn new(message: &str) -> Error {
+    pub fn simple_error(message: &str, id: usize, index: usize, length: usize, markup: &str) -> Self {
         Error {
-            message: String::from(message),
+            message: message.to_owned(),
+            id,
+            index,
+            more_info: None,
+            kind: ErrorKind::Error,
+            markup: vec![ Markup {
+                index,
+                length,
+                message: markup.to_owned(),
+                kind: MarkupKind::Error,
+            }],
         }
     }
 
