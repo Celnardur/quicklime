@@ -1,7 +1,11 @@
 use crate::token::*;
+use crate::Error;
+use TokenType::*;
+
 use std::error;
 use std::vec::Vec;
-use TokenType::*;
+use std::format;
+
 
 pub fn scan(code: Vec<char>) -> Result<Vec<Token>, Box<dyn error::Error>> {
     let mut index = 0;
@@ -41,7 +45,7 @@ macro_rules! tct {
 pub fn parse_token(
     code: &Vec<char>,
     start_index: usize,
-) -> Option<Result<(TokenType, usize), Box<dyn error::Error>>> {
+) -> Option<Result<(TokenType, usize), Error>> {
     if start_index >= code.len() {
         return None;
     }
@@ -96,18 +100,32 @@ pub fn parse_token(
             length += 1;
         }
         // double literal
-        let token = if length < code.len() && code[length] == '.' {
+        return Some(if length < code.len() && code[length] == '.' {
             length += 1;
             while length < code.len() && code[length].is_ascii_digit() {
                 length += 1;
             }
-            // TODO: handle bad parses
-            Double(code[..length].iter().collect::<String>().parse().unwrap())
-        } else {
-            Integer(code[..length].iter().collect::<String>().parse().unwrap())
-        };
 
-        return Some(Ok((token, length)));
+            let token: String = code[..length].iter().collect();
+            match token.parse() {
+                Ok(number) => Ok((Double(number), length)),
+                Err(_) => Err(Error::simple_error(
+                    &format!("Invalid Token: Cannot parse '{}' as a 64 bit floating point", token),
+                    1, start_index, length,
+                    "This number cannot fit in a f64", // NOTE: consider different message
+                )),
+            }
+        } else {
+            let token: String = code[..length].iter().collect();
+            match token.parse() {
+                Ok(number) => Ok((Integer(number), length)),
+                Err(_) => Err(Error::simple_error(
+                    &format!("Invalid Token: Cannot parse '{}' as an 128 bit integer", token),
+                    2, start_index, length,
+                    "This number cannot fit in an i128", // NOTE: consider different message
+                )),
+            }
+        });
     }
 
     Some(match code[0] {
@@ -133,8 +151,6 @@ pub fn parse_token(
             }
             Some('*') => {
                 let mut length = 2;
-                let mut col = 2;
-                let mut line = 0;
                 while code.get(length) != None
                     && !(code.get(length) == Some(&'*') && code.get(length + 1) == Some(&'/'))
                 {
@@ -176,7 +192,11 @@ pub fn parse_token(
             Some('|') => tct!(Or),
             _ => oct!(BitwiseOr),
         },
-        _ => Err(crate::Error::new_box("Reached end of file while scanning")),
+        _ => Err(Error::simple_error(
+            &format!("Invalid Token: '{}' is an illegal character", code[0]),
+            0, start_index, 1,
+            "This character is not used in Quicklime",
+        )),
     })
 }
 
